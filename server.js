@@ -10,6 +10,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// MySQL connection pool
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -20,17 +21,16 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-
-db.connect(err => {
+// Ensure connection and create table on startup
+db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ MySQL Connection Error:", err.message);
     console.error("Please ensure your MySQL server is running and the credentials in .env are correct.");
     return;
   }
   console.log("✅ MySQL connected to database:", process.env.DB_NAME);
-});
-// Temporary route to create users table
-app.get("/create-users-table", (req, res) => {
+
+  // Create users table if not exists
   const createTableQuery = `
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -39,14 +39,17 @@ app.get("/create-users-table", (req, res) => {
       aadhaar VARCHAR(12) UNIQUE NOT NULL
     );
   `;
-  db.query(createTableQuery, (err, result) => {
+  connection.query(createTableQuery, (err, result) => {
+    connection.release(); // release back to pool
     if (err) {
-      return res.status(500).json({ error: "Failed to create table", details: err.message });
+      console.error("❌ Failed to create users table:", err.message);
+    } else {
+      console.log("✅ Users table ensured in DB");
     }
-    res.json({ success: true, message: "Users table created successfully" });
   });
 });
 
+// Signup route
 app.post("/signup", async (req, res) => {
   const { username, password, aadhaar } = req.body;
   if (!username || !password || !aadhaar) {
@@ -72,6 +75,7 @@ app.post("/signup", async (req, res) => {
   }
 });
 
+// Login route
 app.post("/login", (req, res) => {
   const { username, password } = req.body;
   db.query(
@@ -96,12 +100,13 @@ app.post("/login", (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
-      
+
       res.json({ success: true, message: "Login successful", token: token });
     }
   );
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
