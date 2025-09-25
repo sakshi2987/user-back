@@ -25,6 +25,23 @@ db.connect(err => {
   }
   console.log("✅ MySQL connected to database:", process.env.DB_NAME);
 });
+// Temporary route to create users table
+app.get("/create-users-table", (req, res) => {
+  const createTableQuery = `
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      aadhaar VARCHAR(12) UNIQUE NOT NULL
+    );
+  `;
+  db.query(createTableQuery, (err, result) => {
+    if (err) {
+      return res.status(500).json({ error: "Failed to create table", details: err.message });
+    }
+    res.json({ success: true, message: "Users table created successfully" });
+  });
+});
 
 app.post("/signup", async (req, res) => {
   const { username, password, aadhaar } = req.body;
